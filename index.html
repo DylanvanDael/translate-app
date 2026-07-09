@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Translate</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#121212">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root {
     --bg: #fafafa;
@@ -12,6 +18,7 @@
     --text: #1a1a1a;
     --muted: #8a8a8a;
     --accent: #1a1a1a;
+    --hover: rgba(0, 0, 0, 0.06);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -21,6 +28,7 @@
       --text: #f2f2f2;
       --muted: #8a8a8a;
       --accent: #f2f2f2;
+      --hover: rgba(255, 255, 255, 0.08);
     }
   }
   * { box-sizing: border-box; }
@@ -65,8 +73,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
+    padding: 6px 8px 6px 14px;
     border-bottom: 1px solid var(--border);
+  }
+  .detected {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    padding: 4px 2px;
   }
   select {
     appearance: none;
@@ -79,6 +93,27 @@
     cursor: pointer;
   }
   select:focus { outline: none; }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+  .icon-btn.copied { color: #2e9e5b; }
   textarea {
     flex: 1;
     resize: none;
@@ -124,12 +159,27 @@
     transition: transform 0.15s ease;
   }
   .swap:hover { transform: translateY(-50%) rotate(180deg); }
-  .status {
-    text-align: center;
-    font-size: 12px;
-    color: var(--muted);
+  .status-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     margin-top: 10px;
     height: 16px;
+  }
+  .spinner {
+    width: 13px;
+    height: 13px;
+    border: 2px solid var(--border);
+    border-top-color: var(--muted);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  .spinner[hidden] { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status {
+    font-size: 12px;
+    color: var(--muted);
   }
   @media (max-width: 640px) {
     .card { flex-direction: column; }
@@ -146,11 +196,15 @@
     <div class="card">
       <div class="pane">
         <div class="pane-header">
-          <select id="fromLang">
-            <option value="en">English</option>
-            <option value="nl">Dutch</option>
-            <option value="es">Spanish</option>
-          </select>
+          <span class="detected" id="detectedLabel">Auto</span>
+          <div class="header-actions">
+            <button class="icon-btn" id="speakInBtn" title="Listen" aria-label="Listen to input">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h2.5L8 3.5v9L4.5 10H2z" fill="currentColor" stroke="none"/><path d="M10.5 5.5a3 3 0 0 1 0 5"/><path d="M12.3 4a5.5 5.5 0 0 1 0 8"/></svg>
+            </button>
+            <button class="icon-btn" id="clearBtn" title="Clear" aria-label="Clear input">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
+          </div>
         </div>
         <textarea id="fromText" placeholder="Type here…" autofocus></textarea>
       </div>
@@ -166,59 +220,122 @@
             <option value="en">English</option>
             <option value="nl">Dutch</option>
           </select>
+          <div class="header-actions">
+            <button class="icon-btn" id="speakOutBtn" title="Listen" aria-label="Listen to translation">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h2.5L8 3.5v9L4.5 10H2z" fill="currentColor" stroke="none"/><path d="M10.5 5.5a3 3 0 0 1 0 5"/><path d="M12.3 4a5.5 5.5 0 0 1 0 8"/></svg>
+            </button>
+            <button class="icon-btn" id="copyBtn" title="Copy" aria-label="Copy translation">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10"/></svg>
+            </button>
+          </div>
         </div>
         <textarea id="toText" placeholder="Translation" readonly></textarea>
       </div>
     </div>
-    <div class="status" id="status"></div>
+    <div class="status-row">
+      <div class="spinner" id="spinner" hidden></div>
+      <div class="status" id="status"></div>
+    </div>
   </div>
 
 <script>
-  const fromLang = document.getElementById('fromLang');
   const toLang = document.getElementById('toLang');
   const fromText = document.getElementById('fromText');
   const toText = document.getElementById('toText');
   const status = document.getElementById('status');
+  const spinner = document.getElementById('spinner');
   const swapBtn = document.getElementById('swapBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const speakInBtn = document.getElementById('speakInBtn');
+  const speakOutBtn = document.getElementById('speakOutBtn');
+  const detectedLabel = document.getElementById('detectedLabel');
+
+  const LANG_NAMES = { en: 'English', nl: 'Dutch', es: 'Spanish' };
+  const SPEECH_LANG = { en: 'en-US', nl: 'nl-NL', es: 'es-US' };
 
   let debounceTimer = null;
+  let spinnerTimer = null;
   let requestId = 0;
+  let lastDetected = null;
+
+  function updateDetectedLabel(code) {
+    if (!code) { detectedLabel.textContent = 'Auto'; return; }
+    detectedLabel.textContent = LANG_NAMES[code] || code.toUpperCase();
+  }
+
+  function scheduleSpinner(id) {
+    clearTimeout(spinnerTimer);
+    spinner.hidden = true;
+    spinnerTimer = setTimeout(() => {
+      if (id === requestId) spinner.hidden = false;
+    }, 250);
+  }
+
+  function hideSpinner() {
+    clearTimeout(spinnerTimer);
+    spinner.hidden = true;
+  }
+
+  async function translateWithMyMemory(text, src, tgt) {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${tgt}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.responseData && data.responseData.translatedText) {
+      return data.responseData.translatedText;
+    }
+    throw new Error('MyMemory translation failed');
+  }
 
   async function translate() {
     const text = fromText.value.trim();
     if (!text) {
       toText.value = '';
-      status.textContent = '';
-      return;
-    }
-    const src = fromLang.value;
-    const tgt = toLang.value;
-    if (src === tgt) {
-      toText.value = fromText.value;
+      hideSpinner();
       status.textContent = '';
       return;
     }
 
+    const tgt = toLang.value;
+    // es-419 = Latin American Spanish (vs. es-ES for Spain)
+    const apiTgt = tgt === 'es' ? 'es-419' : tgt;
     const myRequest = ++requestId;
-    status.textContent = 'Translating…';
+    scheduleSpinner(myRequest);
 
     try {
-      // es-419 = Latin American Spanish (vs. es-ES for Spain)
-      const apiTgt = tgt === 'es' ? 'es-419' : tgt;
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${apiTgt}&dt=t&q=${encodeURIComponent(text)}`;
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${apiTgt}&dt=t&q=${encodeURIComponent(text)}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error('bad status');
       const data = await res.json();
       if (myRequest !== requestId) return; // stale response
+      if (!Array.isArray(data[0])) throw new Error('bad payload');
 
-      if (data && Array.isArray(data[0])) {
-        toText.value = data[0].map(chunk => chunk[0]).join('');
-        status.textContent = '';
-      } else {
-        status.textContent = 'Translation failed';
-      }
+      toText.value = data[0].map(chunk => chunk[0]).join('');
+      lastDetected = data[2] || null;
+      updateDetectedLabel(lastDetected);
+      hideSpinner();
+      status.textContent = '';
     } catch (err) {
       if (myRequest !== requestId) return;
-      status.textContent = 'Network error';
+
+      // Fallback to MyMemory if we have a known-ish source language to pair with
+      const guessSrc = lastDetected;
+      if (guessSrc) {
+        try {
+          const translated = await translateWithMyMemory(text, guessSrc, apiTgt);
+          if (myRequest !== requestId) return;
+          toText.value = translated;
+          hideSpinner();
+          status.textContent = '';
+          return;
+        } catch (fallbackErr) {
+          // fall through to error state below
+        }
+      }
+
+      if (myRequest !== requestId) return;
+      hideSpinner();
+      status.textContent = 'Translation unavailable — check your connection';
     }
   }
 
@@ -228,18 +345,63 @@
   }
 
   fromText.addEventListener('input', scheduleTranslate);
-  fromLang.addEventListener('change', scheduleTranslate);
   toLang.addEventListener('change', scheduleTranslate);
 
   swapBtn.addEventListener('click', () => {
-    const fl = fromLang.value, tl = toLang.value;
-    fromLang.value = tl;
-    toLang.value = fl;
-    const ft = fromText.value, tt = toText.value;
-    fromText.value = tt;
-    toText.value = ft;
+    const newTarget = lastDetected && LANG_NAMES[lastDetected] ? lastDetected : toLang.value;
+    const oldOutput = toText.value;
+    fromText.value = oldOutput;
+    toText.value = '';
+    toLang.value = newTarget;
+    lastDetected = null;
+    updateDetectedLabel(null);
     scheduleTranslate();
   });
+
+  clearBtn.addEventListener('click', () => {
+    fromText.value = '';
+    toText.value = '';
+    status.textContent = '';
+    hideSpinner();
+    lastDetected = null;
+    updateDetectedLabel(null);
+    fromText.focus();
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    if (!toText.value) return;
+    try {
+      await navigator.clipboard.writeText(toText.value);
+    } catch (err) {
+      toText.select();
+      document.execCommand('copy');
+      toText.setSelectionRange(0, 0);
+    }
+    copyBtn.classList.add('copied');
+    setTimeout(() => copyBtn.classList.remove('copied'), 1200);
+  });
+
+  function speak(text, langCode) {
+    if (!text || !('speechSynthesis' in window)) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = SPEECH_LANG[langCode] || 'en-US';
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utter);
+  }
+
+  speakInBtn.addEventListener('click', () => {
+    speak(fromText.value, lastDetected || 'en');
+  });
+
+  speakOutBtn.addEventListener('click', () => {
+    speak(toText.value, toLang.value);
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>
