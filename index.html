@@ -75,30 +75,7 @@
     min-width: 64px;
   }
   .lang-chip.source { text-align: right; }
-  .dir-select {
-    appearance: none;
-    -webkit-appearance: none;
-    background: transparent;
-    border: none;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    cursor: pointer;
-    min-width: 64px;
-    padding: 2px 18px 2px 2px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 2px center;
-  }
-  .dir-select:focus { outline: none; }
-  .dir-select:disabled {
-    opacity: 1;
-    color: var(--text);
-    cursor: default;
-    background-image: none;
-    padding-right: 2px;
-  }
+  .lang-chip.target { text-align: left; }
   .flip-btn {
     width: 30px;
     height: 30px;
@@ -197,7 +174,7 @@
       <div class="dir-bar">
         <span class="lang-chip source" id="sourceChip">English</span>
         <button class="flip-btn" id="flipBtn" title="Reverse direction" aria-label="Reverse direction">⇄</button>
-        <select class="dir-select" id="targetSelect" aria-label="Translate to"></select>
+        <span class="lang-chip target" id="targetChip">Spanish</span>
       </div>
       <div class="body">
         <div class="pane">
@@ -238,7 +215,7 @@
   const spinner = document.getElementById('spinner');
   const flipBtn = document.getElementById('flipBtn');
   const sourceChip = document.getElementById('sourceChip');
-  const targetSelect = document.getElementById('targetSelect');
+  const targetChip = document.getElementById('targetChip');
   const clearBtn = document.getElementById('clearBtn');
   const copyBtn = document.getElementById('copyBtn');
   const speakInBtn = document.getElementById('speakInBtn');
@@ -294,45 +271,20 @@
   let debounceTimer = null;
   let spinnerTimer = null;
   let requestId = 0;
-  // The non-Spanish side. When you type Spanish, we translate back to this.
-  let preferredEuro = localStorage.getItem('preferredEuro') || 'en';
-  let currentSrc = preferredEuro;
+  let currentSrc = 'en';
   let currentTgt = 'es';
-  let lastCategory = null; // 'toES' | 'fromES' — tracks which target options are shown
 
   function renderBar(src, tgt) {
     currentSrc = src;
     currentTgt = tgt;
     sourceChip.textContent = LANG_NAMES[src];
-    const category = src === 'es' ? 'fromES' : 'toES';
-    if (category !== lastCategory) {
-      targetSelect.innerHTML = '';
-      const options = src === 'es' ? ['en', 'nl'] : ['es'];
-      for (const code of options) {
-        const opt = document.createElement('option');
-        opt.value = code;
-        opt.textContent = LANG_NAMES[code];
-        targetSelect.appendChild(opt);
-      }
-      lastCategory = category;
-    }
-    targetSelect.value = tgt;
-    // Only the Spanish->English/Dutch choice is a real decision; lock the rest.
-    targetSelect.disabled = src !== 'es';
+    targetChip.textContent = LANG_NAMES[tgt];
   }
 
   function computeDirection(text) {
     const src = detectLang(text);
-    let tgt;
-    if (src === 'es') {
-      tgt = preferredEuro;
-    } else {
-      tgt = 'es';
-      if (src !== preferredEuro) {
-        preferredEuro = src;
-        localStorage.setItem('preferredEuro', src);
-      }
-    }
+    // Spanish always translates back to English; Dutch/English go to Spanish.
+    const tgt = src === 'es' ? 'en' : 'es';
     return { src, tgt };
   }
 
@@ -413,15 +365,6 @@
   }
 
   fromText.addEventListener('input', scheduleTranslate);
-
-  targetSelect.addEventListener('change', () => {
-    // Only meaningful when translating out of Spanish: pick English vs Dutch.
-    if (currentSrc === 'es') {
-      preferredEuro = targetSelect.value;
-      localStorage.setItem('preferredEuro', preferredEuro);
-      scheduleTranslate();
-    }
-  });
 
   flipBtn.addEventListener('click', () => {
     // Send the translation back through as the new input; direction re-detects itself.
