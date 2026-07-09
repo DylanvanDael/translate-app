@@ -162,6 +162,25 @@
   .spinner[hidden] { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .status { font-size: 12px; color: var(--muted); }
+  /* "Did you mean" suggestion */
+  .suggest {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: baseline;
+    font-size: 13px;
+    transition: background 0.15s ease;
+  }
+  .suggest[hidden] { display: none; }
+  .suggest:hover { background: var(--hover); }
+  .suggest-label { color: var(--muted); }
+  .suggest-val { color: var(--text); font-weight: 600; }
   /* Other meanings (dictionary) */
   .meanings {
     margin-top: 14px;
@@ -251,6 +270,7 @@
       <div class="spinner" id="spinner" hidden></div>
       <div class="status" id="status"></div>
     </div>
+    <div class="suggest" id="suggest" hidden></div>
     <div class="meanings" id="meanings" hidden></div>
   </div>
 
@@ -267,6 +287,7 @@
   const speakInBtn = document.getElementById('speakInBtn');
   const speakOutBtn = document.getElementById('speakOutBtn');
   const meanings = document.getElementById('meanings');
+  const suggest = document.getElementById('suggest');
 
   const LANG_NAMES = { en: 'English', nl: 'Dutch', es: 'Spanish' };
   const SPEECH_LANG = { en: 'en-US', nl: 'nl-NL', es: 'es-US' };
@@ -341,7 +362,10 @@
     if (!res.ok) throw new Error('bad status');
     const data = await res.json();
     if (!Array.isArray(data[0])) throw new Error('bad payload');
-    return { data, text: data[0].map((chunk) => chunk[0]).join('') };
+    // A dictionary block only comes back for a real word in the *source* language —
+    // that's our signal for which language a bare word actually belongs to.
+    const dict = Array.isArray(data[1]) && data[1].length > 0;
+    return { data, text: data[0].map((chunk) => chunk[0]).join(''), dict };
   }
 
   // Show the dictionary block (alternative meanings by part of speech) when Google
@@ -425,54 +449,91 @@
     if (!text) {
       toText.value = '';
       renderMeanings(null);
+      hideSuggest();
       hideSpinner();
       status.textContent = '';
       return;
     }
 
-    // Fast local guess only picks which direction to *probe* first (saves a call);
-    // the real direction comes from Google's auto-detect + a no-op safety check.
-    const guess = detectLang(text);
-    const firstTgt = guess === 'es' ? 'en' : 'es';
     const myRequest = ++requestId;
     scheduleSpinner(myRequest);
+    const singleWord = !/\s/.test(text);
 
     try {
-      let result = await callGoogle('auto', firstTgt, text);
-      if (myRequest !== requestId) return; // stale response
-      let tgt = firstTgt;
+      let result, src, tgt;
+      let suggestion = null; // [src, tgt, result] for the "Did you mean" chip
 
-      // A no-op means auto-detect refused to translate — almost always a bare
-      // Spanish word it wrongly reads as English (e.g. "gato", "casa"). Force it to
-      // be treated as Spanish and translate to English; keep only if that helps.
-      if (isNoop(result.text, text)) {
-        const forced = await callGoogle('es', 'en', text);
+      if (singleWord) {
+        // Read the word as BOTH languages; the one with a dictionary entry is the
+        // real source. This is far more reliable than auto-detect for bare words
+        // (which misreads "coche", "gato", "vale" as English).
+        const [asEn, asEs] = await Promise.all([
+          callGoogle('en', 'es', text),
+          callGoogle('es', 'en', text),
+        ]);
         if (myRequest !== requestId) return;
-        if (!isNoop(forced.text, text)) {
-          result = forced;
-          tgt = 'en';
-        }
-      }
 
-      // This app only ever produces English from Spanish; everything else -> Spanish.
-      let src;
-      if (tgt === 'en') {
-        src = 'es';
+        if (asEs.dict && !asEn.dict) {
+          result = asEs; src = 'es'; tgt = 'en';
+        } else if (asEn.dict && !asEs.dict) {
+          result = asEn; src = 'en'; tgt = 'es';
+        } else if (asEn.dict && asEs.dict) {
+          // Valid in both languages — default to English→Spanish, offer the other.
+          result = asEn; src = 'en'; tgt = 'es';
+          suggestion = ['es', 'en', asEs];
+        } else {
+          // Neither: likely Dutch or a proper noun — ask auto-detect.
+          const probe = await callGoogle('auto', 'es', text);
+          if (myRequest !== requestId) return;
+          const detected = normSrc(probe.data[2]);
+          if (detected === 'es') {
+            result = asEs; src = 'es'; tgt = 'en';
+          } else {
+            result = probe; tgt = 'es';
+            src = detected === 'nl' || detected === 'en' ? detected : 'en';
+          }
+        }
       } else {
-        const detected = normSrc(result.data[2]);
-        src = detected === 'nl' || detected === 'en' ? detected : (guess === 'nl' ? 'nl' : 'en');
+        // Sentences: auto-detect is reliable. Translate toward Spanish and, if the
+        // input is Spanish, translate it to English instead.
+        const probe = await callGoogle('auto', 'es', text);
+        if (myRequest !== requestId) return;
+        const detected = normSrc(probe.data[2]);
+        if (detected === 'es' || isNoop(probe.text, text)) {
+          const toEn = await callGoogle('es', 'en', text);
+          if (myRequest !== requestId) return;
+          if (detected === 'es' || !isNoop(toEn.text, text)) {
+            result = toEn; src = 'es'; tgt = 'en';
+          } else {
+            result = probe; src = 'en'; tgt = 'es';
+          }
+        } else {
+          result = probe; tgt = 'es';
+          src = detected === 'nl' || detected === 'en' ? detected : 'en';
+        }
       }
 
       renderBar(src, tgt);
       toText.value = result.text;
       renderMeanings(result.data[1]);
+
+      // Show "Did you mean" only for a genuinely different alternative reading.
+      if (suggestion && !isNoop(suggestion[2].text, text) &&
+          norm(suggestion[2].text) !== norm(result.text)) {
+        showSuggest(suggestion[0], suggestion[1], suggestion[2]);
+      } else {
+        hideSuggest();
+      }
+
       hideSpinner();
       status.textContent = '';
     } catch (err) {
       if (myRequest !== requestId) return;
       renderMeanings(null);
+      hideSuggest();
 
       // Fallback to MyMemory using the local guess for direction.
+      const guess = detectLang(text);
       const src = guess;
       const tgt = guess === 'es' ? 'en' : 'es';
       renderBar(src, tgt);
@@ -491,6 +552,29 @@
       hideSpinner();
       status.textContent = 'Translation unavailable — check your connection';
     }
+  }
+
+  function showSuggest(sl, tl, res) {
+    suggest.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'suggest-label';
+    label.textContent = `Did you mean ${LANG_NAMES[sl]} → ${LANG_NAMES[tl]}?`;
+    const val = document.createElement('span');
+    val.className = 'suggest-val';
+    val.textContent = res.text;
+    suggest.append(label, val);
+    suggest.hidden = false;
+    suggest.onclick = () => {
+      renderBar(sl, tl);
+      toText.value = res.text;
+      renderMeanings(res.data[1]);
+      hideSuggest();
+    };
+  }
+
+  function hideSuggest() {
+    suggest.hidden = true;
+    suggest.onclick = null;
   }
 
   function scheduleTranslate() {
@@ -514,6 +598,7 @@
     toText.value = '';
     status.textContent = '';
     renderMeanings(null);
+    hideSuggest();
     hideSpinner();
     fromText.focus();
   });
