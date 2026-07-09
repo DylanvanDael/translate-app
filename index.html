@@ -203,13 +203,15 @@
     status.textContent = 'Translating…';
 
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${tgt}`;
+      // es-419 = Latin American Spanish (vs. es-ES for Spain)
+      const apiTgt = tgt === 'es' ? 'es-419' : tgt;
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${apiTgt}&dt=t&q=${encodeURIComponent(text)}`;
       const res = await fetch(url);
       const data = await res.json();
       if (myRequest !== requestId) return; // stale response
 
-      if (data && data.responseData && data.responseData.translatedText) {
-        toText.value = data.responseData.translatedText;
+      if (data && Array.isArray(data[0])) {
+        toText.value = data[0].map(chunk => chunk[0]).join('');
         status.textContent = '';
       } else {
         status.textContent = 'Translation failed';
@@ -222,7 +224,7 @@
 
   function scheduleTranslate() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(translate, 400);
+    debounceTimer = setTimeout(translate, 180);
   }
 
   fromText.addEventListener('input', scheduleTranslate);
