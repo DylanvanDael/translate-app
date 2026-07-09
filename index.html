@@ -162,6 +162,50 @@
   .spinner[hidden] { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .status { font-size: 12px; color: var(--muted); }
+  /* Other meanings (dictionary) */
+  .meanings {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .meanings[hidden] { display: none; }
+  .meanings-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 11px 16px 4px;
+  }
+  .pos-group { padding: 8px 16px 10px; }
+  .pos-group + .pos-group { border-top: 1px solid var(--border); }
+  .pos-label {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .term-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 3px 0;
+  }
+  .term {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 0 3px;
+    margin: 0 -3px;
+    transition: background 0.15s ease;
+  }
+  .term:hover { background: var(--hover); }
+  .gloss { font-size: 12px; color: var(--muted); }
   @media (max-width: 640px) {
     .body { flex-direction: column; }
     .divider { width: auto; height: 1px; }
@@ -207,6 +251,7 @@
       <div class="spinner" id="spinner" hidden></div>
       <div class="status" id="status"></div>
     </div>
+    <div class="meanings" id="meanings" hidden></div>
   </div>
 
 <script>
@@ -221,6 +266,7 @@
   const copyBtn = document.getElementById('copyBtn');
   const speakInBtn = document.getElementById('speakInBtn');
   const speakOutBtn = document.getElementById('speakOutBtn');
+  const meanings = document.getElementById('meanings');
 
   const LANG_NAMES = { en: 'English', nl: 'Dutch', es: 'Spanish' };
   const SPEECH_LANG = { en: 'en-US', nl: 'nl-NL', es: 'es-US' };
@@ -289,6 +335,59 @@
     return { src, tgt };
   }
 
+  // Show the dictionary block (alternative meanings by part of speech) when Google
+  // returns one — it only does for single words / short phrases, exactly where a
+  // one-shot translation hides ambiguity (e.g. "right" -> bien / derecha / derecho).
+  function renderMeanings(bd) {
+    meanings.innerHTML = '';
+    if (!Array.isArray(bd) || !bd.length) { meanings.hidden = true; return; }
+
+    const title = document.createElement('div');
+    title.className = 'meanings-title';
+    title.textContent = 'Other meanings';
+    meanings.appendChild(title);
+
+    let groupsShown = 0;
+    for (const group of bd) {
+      const pos = group[0];
+      const entries = Array.isArray(group[2]) ? group[2] : [];
+      if (!entries.length) continue;
+
+      const groupEl = document.createElement('div');
+      groupEl.className = 'pos-group';
+      if (pos) {
+        const label = document.createElement('div');
+        label.className = 'pos-label';
+        label.textContent = pos;
+        groupEl.appendChild(label);
+      }
+      for (const entry of entries.slice(0, 4)) {
+        const term = entry[0];
+        const reverse = Array.isArray(entry[1]) ? entry[1].slice(0, 4).join(', ') : '';
+        const row = document.createElement('div');
+        row.className = 'term-row';
+
+        const termEl = document.createElement('span');
+        termEl.className = 'term';
+        termEl.textContent = term;
+        termEl.title = 'Use this translation';
+        termEl.addEventListener('click', () => { toText.value = term; });
+        row.appendChild(termEl);
+
+        if (reverse) {
+          const glossEl = document.createElement('span');
+          glossEl.className = 'gloss';
+          glossEl.textContent = reverse;
+          row.appendChild(glossEl);
+        }
+        groupEl.appendChild(row);
+      }
+      meanings.appendChild(groupEl);
+      if (++groupsShown >= 4) break;
+    }
+    meanings.hidden = groupsShown === 0;
+  }
+
   function scheduleSpinner(id) {
     clearTimeout(spinnerTimer);
     spinner.hidden = true;
@@ -316,6 +415,7 @@
     const text = fromText.value.trim();
     if (!text) {
       toText.value = '';
+      renderMeanings(null);
       hideSpinner();
       status.textContent = '';
       return;
@@ -329,7 +429,8 @@
     scheduleSpinner(myRequest);
 
     try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${apiTgt}&dt=t&q=${encodeURIComponent(text)}`;
+      // dt=t = translation, dt=bd = dictionary (alternative meanings by part of speech).
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${apiTgt}&dt=t&dt=bd&hl=en&q=${encodeURIComponent(text)}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('bad status');
       const data = await res.json();
@@ -337,10 +438,12 @@
       if (!Array.isArray(data[0])) throw new Error('bad payload');
 
       toText.value = data[0].map(chunk => chunk[0]).join('');
+      renderMeanings(data[1]);
       hideSpinner();
       status.textContent = '';
     } catch (err) {
       if (myRequest !== requestId) return;
+      renderMeanings(null);
 
       // Fallback to MyMemory using the same detected source language.
       try {
@@ -380,6 +483,7 @@
     fromText.value = '';
     toText.value = '';
     status.textContent = '';
+    renderMeanings(null);
     hideSpinner();
     fromText.focus();
   });
