@@ -17,7 +17,6 @@
     --border: #e5e5e5;
     --text: #1a1a1a;
     --muted: #8a8a8a;
-    --accent: #1a1a1a;
     --hover: rgba(0, 0, 0, 0.06);
   }
   @media (prefers-color-scheme: dark) {
@@ -27,7 +26,6 @@
       --border: #2c2c2c;
       --text: #f2f2f2;
       --muted: #8a8a8a;
-      --accent: #f2f2f2;
       --hover: rgba(255, 255, 255, 0.08);
     }
   }
@@ -56,12 +54,71 @@
     margin: 0 0 16px 4px;
   }
   .card {
-    display: flex;
-    align-items: stretch;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
+  }
+  /* Direction bar */
+  .dir-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .lang-chip {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 64px;
+  }
+  .lang-chip.source { text-align: right; }
+  .dir-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    min-width: 64px;
+    padding: 2px 18px 2px 2px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 2px center;
+  }
+  .dir-select:focus { outline: none; }
+  .dir-select:disabled {
+    opacity: 1;
+    color: var(--text);
+    cursor: default;
+    background-image: none;
+    padding-right: 2px;
+  }
+  .flip-btn {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    transition: transform 0.2s ease, background 0.15s ease;
+  }
+  .flip-btn:hover { transform: rotate(180deg); background: var(--hover); }
+  /* Body */
+  .body {
+    display: flex;
+    align-items: stretch;
   }
   .pane {
     flex: 1;
@@ -69,38 +126,31 @@
     flex-direction: column;
     min-width: 0;
   }
-  .pane-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 8px 6px 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .detected {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text);
-    padding: 4px 2px;
-  }
-  select {
-    appearance: none;
-    background: transparent;
+  textarea {
+    flex: 1;
+    resize: none;
     border: none;
+    background: transparent;
     color: var(--text);
-    font-size: 14px;
-    font-weight: 500;
-    padding: 4px 2px;
-    cursor: pointer;
+    font-size: 17px;
+    line-height: 1.5;
+    padding: 16px;
+    min-height: 170px;
+    font-family: inherit;
   }
-  select:focus { outline: none; }
-  .header-actions {
+  textarea:focus { outline: none; }
+  textarea::placeholder { color: var(--muted); }
+  .divider { width: 1px; background: var(--border); }
+  .pane-tools {
     display: flex;
-    align-items: center;
+    justify-content: flex-end;
     gap: 2px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--border);
   }
   .icon-btn {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -114,51 +164,7 @@
   }
   .icon-btn:hover { background: var(--hover); color: var(--text); }
   .icon-btn.copied { color: #2e9e5b; }
-  textarea {
-    flex: 1;
-    resize: none;
-    border: none;
-    background: transparent;
-    color: var(--text);
-    font-size: 17px;
-    line-height: 1.5;
-    padding: 16px;
-    min-height: 180px;
-    font-family: inherit;
-  }
-  textarea:focus { outline: none; }
-  textarea::placeholder { color: var(--muted); }
-  .divider {
-    width: 1px;
-    background: var(--border);
-  }
-  .swap-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 0;
-    position: relative;
-  }
-  .swap {
-    position: absolute;
-    left: -18px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2;
-    font-size: 16px;
-    transition: transform 0.15s ease;
-  }
-  .swap:hover { transform: translateY(-50%) rotate(180deg); }
+  /* Status */
   .status-row {
     display: flex;
     align-items: center;
@@ -177,16 +183,10 @@
   }
   .spinner[hidden] { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .status {
-    font-size: 12px;
-    color: var(--muted);
-  }
+  .status { font-size: 12px; color: var(--muted); }
   @media (max-width: 640px) {
-    .card { flex-direction: column; }
+    .body { flex-direction: column; }
     .divider { width: auto; height: 1px; }
-    .swap-wrap { width: auto; height: 0; }
-    .swap { left: 50%; top: -18px; transform: translateX(-50%); }
-    .swap:hover { transform: translateX(-50%) rotate(180deg); }
   }
 </style>
 </head>
@@ -194,10 +194,15 @@
   <div class="app">
     <h1>Translate</h1>
     <div class="card">
-      <div class="pane">
-        <div class="pane-header">
-          <span class="detected" id="detectedLabel">Auto</span>
-          <div class="header-actions">
+      <div class="dir-bar">
+        <span class="lang-chip source" id="sourceChip">English</span>
+        <button class="flip-btn" id="flipBtn" title="Reverse direction" aria-label="Reverse direction">⇄</button>
+        <select class="dir-select" id="targetSelect" aria-label="Translate to"></select>
+      </div>
+      <div class="body">
+        <div class="pane">
+          <textarea id="fromText" placeholder="Type here…" autofocus></textarea>
+          <div class="pane-tools">
             <button class="icon-btn" id="speakInBtn" title="Listen" aria-label="Listen to input">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h2.5L8 3.5v9L4.5 10H2z" fill="currentColor" stroke="none"/><path d="M10.5 5.5a3 3 0 0 1 0 5"/><path d="M12.3 4a5.5 5.5 0 0 1 0 8"/></svg>
             </button>
@@ -206,21 +211,10 @@
             </button>
           </div>
         </div>
-        <textarea id="fromText" placeholder="Type here…" autofocus></textarea>
-      </div>
-
-      <div class="divider"></div>
-      <div class="swap-wrap"><button class="swap" id="swapBtn" title="Swap languages">⇄</button></div>
-      <div class="divider"></div>
-
-      <div class="pane">
-        <div class="pane-header">
-          <select id="toLang">
-            <option value="es">Spanish</option>
-            <option value="en">English</option>
-            <option value="nl">Dutch</option>
-          </select>
-          <div class="header-actions">
+        <div class="divider"></div>
+        <div class="pane">
+          <textarea id="toText" placeholder="Translation" readonly></textarea>
+          <div class="pane-tools">
             <button class="icon-btn" id="speakOutBtn" title="Listen" aria-label="Listen to translation">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h2.5L8 3.5v9L4.5 10H2z" fill="currentColor" stroke="none"/><path d="M10.5 5.5a3 3 0 0 1 0 5"/><path d="M12.3 4a5.5 5.5 0 0 1 0 8"/></svg>
             </button>
@@ -229,7 +223,6 @@
             </button>
           </div>
         </div>
-        <textarea id="toText" placeholder="Translation" readonly></textarea>
       </div>
     </div>
     <div class="status-row">
@@ -239,23 +232,22 @@
   </div>
 
 <script>
-  const toLang = document.getElementById('toLang');
   const fromText = document.getElementById('fromText');
   const toText = document.getElementById('toText');
   const status = document.getElementById('status');
   const spinner = document.getElementById('spinner');
-  const swapBtn = document.getElementById('swapBtn');
+  const flipBtn = document.getElementById('flipBtn');
+  const sourceChip = document.getElementById('sourceChip');
+  const targetSelect = document.getElementById('targetSelect');
   const clearBtn = document.getElementById('clearBtn');
   const copyBtn = document.getElementById('copyBtn');
   const speakInBtn = document.getElementById('speakInBtn');
   const speakOutBtn = document.getElementById('speakOutBtn');
-  const detectedLabel = document.getElementById('detectedLabel');
 
   const LANG_NAMES = { en: 'English', nl: 'Dutch', es: 'Spanish' };
   const SPEECH_LANG = { en: 'en-US', nl: 'nl-NL', es: 'es-US' };
 
-  // Source detection is deliberately limited to Dutch vs. English (the only two
-  // input languages when translating into Spanish). Scored by common-word overlap.
+  // ---- Language detection (English / Dutch / Spanish) via common-word overlap ----
   const NL_WORDS = new Set(('de het een en van ik te dat die in hij niet zijn is was op ' +
     'aan met als voor had er maar om hem dan zou of wat mijn men dit zo door over ze zich bij ' +
     'ook tot je mij uit der daar haar naar heb hoe heeft hebben deze want nog zal me zij nu geen ' +
@@ -269,28 +261,79 @@
     'out if about who get which go me when make can like time no just him know take people into ' +
     'year your good some could them see other than then now look only come its over think also ' +
     'back after use two how our work first well way even new want because any these give day most ' +
-    'us are was thanks please hello morning evening where when why would could should i am is').split(' '));
+    'us are was thanks please hello morning evening where why should i am is').split(' '));
+  const ES_WORDS = new Set(('el la los las una unos unas que qué de con para por como cómo dónde ' +
+    'cuándo cuánto cuál quién porque gracias hola buenos buenas días tardes noches quiero necesito ' +
+    'tengo tiene hay muy pero más este esta eso esto usted ustedes nosotros ellos señor señora ' +
+    'agua comida favor adiós sí también ahora aquí allí mañana hoy ayer bien mal hombre mujer ' +
+    'casa calle tienda es está están estoy soy eres puedo puede vamos hacer').split(' '));
 
-  function detectNlEn(text) {
-    const tokens = (text.toLowerCase().match(/[a-zà-ÿ]+/g)) || [];
-    let nl = 0, en = 0;
+  function detectLang(text) {
+    const lower = text.toLowerCase();
+    const tokens = lower.match(/[a-zà-ÿñ]+/g) || [];
+    const score = { nl: 0, en: 0, es: 0 };
     for (const t of tokens) {
-      if (NL_WORDS.has(t)) nl++;
-      if (EN_WORDS.has(t)) en++;
+      if (NL_WORDS.has(t)) score.nl++;
+      if (EN_WORDS.has(t)) score.en++;
+      if (ES_WORDS.has(t)) score.es++;
     }
-    if (nl !== en) return nl > en ? 'nl' : 'en';
-    // Tie-break on characteristic Dutch spelling patterns.
-    return /ij|sch|aa|ee|oo|uu|\w+tje|\w+heid|\w+en\b/.test(text.toLowerCase()) ? 'nl' : 'en';
+    // Spanish has unmistakable punctuation/letters.
+    if (/[ñ¿¡]/.test(text)) score.es += 3;
+    if (/[áéíóú]/.test(lower)) score.es += 1;
+    // Characteristic Dutch spelling patterns.
+    if (/ij|sch|\w+tje\b|\w+heid\b/.test(lower)) score.nl += 0.5;
+    // Argmax; on ties prefer the more strongly-marked languages (es, then nl).
+    let best = 'en', bestScore = -1;
+    for (const lang of ['es', 'nl', 'en']) {
+      if (score[lang] > bestScore) { bestScore = score[lang]; best = lang; }
+    }
+    return bestScore > 0 ? best : 'en';
   }
 
+  // ---- State ----
   let debounceTimer = null;
   let spinnerTimer = null;
   let requestId = 0;
-  let lastDetected = null;
+  // The non-Spanish side. When you type Spanish, we translate back to this.
+  let preferredEuro = localStorage.getItem('preferredEuro') || 'en';
+  let currentSrc = preferredEuro;
+  let currentTgt = 'es';
+  let lastCategory = null; // 'toES' | 'fromES' — tracks which target options are shown
 
-  function updateDetectedLabel(code) {
-    if (!code) { detectedLabel.textContent = 'Auto'; return; }
-    detectedLabel.textContent = LANG_NAMES[code] || code.toUpperCase();
+  function renderBar(src, tgt) {
+    currentSrc = src;
+    currentTgt = tgt;
+    sourceChip.textContent = LANG_NAMES[src];
+    const category = src === 'es' ? 'fromES' : 'toES';
+    if (category !== lastCategory) {
+      targetSelect.innerHTML = '';
+      const options = src === 'es' ? ['en', 'nl'] : ['es'];
+      for (const code of options) {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = LANG_NAMES[code];
+        targetSelect.appendChild(opt);
+      }
+      lastCategory = category;
+    }
+    targetSelect.value = tgt;
+    // Only the Spanish->English/Dutch choice is a real decision; lock the rest.
+    targetSelect.disabled = src !== 'es';
+  }
+
+  function computeDirection(text) {
+    const src = detectLang(text);
+    let tgt;
+    if (src === 'es') {
+      tgt = preferredEuro;
+    } else {
+      tgt = 'es';
+      if (src !== preferredEuro) {
+        preferredEuro = src;
+        localStorage.setItem('preferredEuro', src);
+      }
+    }
+    return { src, tgt };
   }
 
   function scheduleSpinner(id) {
@@ -325,15 +368,10 @@
       return;
     }
 
-    const tgt = toLang.value;
-    // Translating INTO Spanish, the input is Dutch or English (detected between just
-    // those two). Translating OUT of Spanish (target English/Dutch), the input is Spanish.
-    const src = tgt === 'es' ? detectNlEn(text) : 'es';
+    const { src, tgt } = computeDirection(text);
+    renderBar(src, tgt);
     // es-419 = Latin American Spanish (vs. es-ES for Spain)
     const apiTgt = tgt === 'es' ? 'es-419' : tgt;
-    lastDetected = src;
-    updateDetectedLabel(src);
-
     const myRequest = ++requestId;
     scheduleSpinner(myRequest);
 
@@ -351,7 +389,7 @@
     } catch (err) {
       if (myRequest !== requestId) return;
 
-      // Fallback to MyMemory using the same constrained source language.
+      // Fallback to MyMemory using the same detected source language.
       try {
         const translated = await translateWithMyMemory(text, src, apiTgt);
         if (myRequest !== requestId) return;
@@ -375,17 +413,23 @@
   }
 
   fromText.addEventListener('input', scheduleTranslate);
-  toLang.addEventListener('change', scheduleTranslate);
 
-  swapBtn.addEventListener('click', () => {
-    // Send the output back through as input, translating toward the language we came from.
-    const newTarget = lastDetected && LANG_NAMES[lastDetected] ? lastDetected : toLang.value;
+  targetSelect.addEventListener('change', () => {
+    // Only meaningful when translating out of Spanish: pick English vs Dutch.
+    if (currentSrc === 'es') {
+      preferredEuro = targetSelect.value;
+      localStorage.setItem('preferredEuro', preferredEuro);
+      scheduleTranslate();
+    }
+  });
+
+  flipBtn.addEventListener('click', () => {
+    // Send the translation back through as the new input; direction re-detects itself.
+    if (!toText.value) return;
     fromText.value = toText.value;
     toText.value = '';
-    toLang.value = newTarget;
-    lastDetected = null;
-    updateDetectedLabel(null);
-    scheduleTranslate();
+    fromText.focus();
+    translate();
   });
 
   clearBtn.addEventListener('click', () => {
@@ -393,8 +437,6 @@
     toText.value = '';
     status.textContent = '';
     hideSpinner();
-    lastDetected = null;
-    updateDetectedLabel(null);
     fromText.focus();
   });
 
@@ -419,13 +461,11 @@
     speechSynthesis.speak(utter);
   }
 
-  speakInBtn.addEventListener('click', () => {
-    speak(fromText.value, lastDetected || 'en');
-  });
+  speakInBtn.addEventListener('click', () => speak(fromText.value, currentSrc));
+  speakOutBtn.addEventListener('click', () => speak(toText.value, currentTgt));
 
-  speakOutBtn.addEventListener('click', () => {
-    speak(toText.value, toLang.value);
-  });
+  // Resting state before any typing.
+  renderBar(currentSrc, currentTgt);
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
