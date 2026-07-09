@@ -254,6 +254,35 @@
   const LANG_NAMES = { en: 'English', nl: 'Dutch', es: 'Spanish' };
   const SPEECH_LANG = { en: 'en-US', nl: 'nl-NL', es: 'es-US' };
 
+  // Source detection is deliberately limited to Dutch vs. English (the only two
+  // input languages when translating into Spanish). Scored by common-word overlap.
+  const NL_WORDS = new Set(('de het een en van ik te dat die in hij niet zijn is was op ' +
+    'aan met als voor had er maar om hem dan zou of wat mijn men dit zo door over ze zich bij ' +
+    'ook tot je mij uit der daar haar naar heb hoe heeft hebben deze want nog zal me zij nu geen ' +
+    'omdat iets worden toch al waren veel meer doen toen moet ben zonder kan hun dus alles onder ' +
+    'ja eens hier wie werd altijd wordt kunnen ons zelf tegen na wil kon niets uw iemand geweest ' +
+    'andere goedemorgen goedemiddag goedenavond dank alsjeblieft alstublieft jij wij gaat goed ' +
+    'morgen avond dag waar wanneer waarom jullie graag hallo hoi bedankt tot ziens prettig lekker ' +
+    'mooi weer vandaag gisteren misschien natuurlijk welkom vriendelijk groetjes').split(' '));
+  const EN_WORDS = new Set(('the be to of and a in that have it for not on with he as you do at ' +
+    'this but his by from they we say her she or an will my one all would there their what so up ' +
+    'out if about who get which go me when make can like time no just him know take people into ' +
+    'year your good some could them see other than then now look only come its over think also ' +
+    'back after use two how our work first well way even new want because any these give day most ' +
+    'us are was thanks please hello morning evening where when why would could should i am is').split(' '));
+
+  function detectNlEn(text) {
+    const tokens = (text.toLowerCase().match(/[a-zà-ÿ]+/g)) || [];
+    let nl = 0, en = 0;
+    for (const t of tokens) {
+      if (NL_WORDS.has(t)) nl++;
+      if (EN_WORDS.has(t)) en++;
+    }
+    if (nl !== en) return nl > en ? 'nl' : 'en';
+    // Tie-break on characteristic Dutch spelling patterns.
+    return /ij|sch|aa|ee|oo|uu|\w+tje|\w+heid|\w+en\b/.test(text.toLowerCase()) ? 'nl' : 'en';
+  }
+
   let debounceTimer = null;
   let spinnerTimer = null;
   let requestId = 0;
@@ -297,13 +326,19 @@
     }
 
     const tgt = toLang.value;
+    // Translating INTO Spanish, the input is Dutch or English (detected between just
+    // those two). Translating OUT of Spanish (target English/Dutch), the input is Spanish.
+    const src = tgt === 'es' ? detectNlEn(text) : 'es';
     // es-419 = Latin American Spanish (vs. es-ES for Spain)
     const apiTgt = tgt === 'es' ? 'es-419' : tgt;
+    lastDetected = src;
+    updateDetectedLabel(src);
+
     const myRequest = ++requestId;
     scheduleSpinner(myRequest);
 
     try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${apiTgt}&dt=t&q=${encodeURIComponent(text)}`;
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${apiTgt}&dt=t&q=${encodeURIComponent(text)}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('bad status');
       const data = await res.json();
@@ -311,26 +346,21 @@
       if (!Array.isArray(data[0])) throw new Error('bad payload');
 
       toText.value = data[0].map(chunk => chunk[0]).join('');
-      lastDetected = data[2] || null;
-      updateDetectedLabel(lastDetected);
       hideSpinner();
       status.textContent = '';
     } catch (err) {
       if (myRequest !== requestId) return;
 
-      // Fallback to MyMemory if we have a known-ish source language to pair with
-      const guessSrc = lastDetected;
-      if (guessSrc) {
-        try {
-          const translated = await translateWithMyMemory(text, guessSrc, apiTgt);
-          if (myRequest !== requestId) return;
-          toText.value = translated;
-          hideSpinner();
-          status.textContent = '';
-          return;
-        } catch (fallbackErr) {
-          // fall through to error state below
-        }
+      // Fallback to MyMemory using the same constrained source language.
+      try {
+        const translated = await translateWithMyMemory(text, src, apiTgt);
+        if (myRequest !== requestId) return;
+        toText.value = translated;
+        hideSpinner();
+        status.textContent = '';
+        return;
+      } catch (fallbackErr) {
+        // fall through to error state below
       }
 
       if (myRequest !== requestId) return;
@@ -348,9 +378,9 @@
   toLang.addEventListener('change', scheduleTranslate);
 
   swapBtn.addEventListener('click', () => {
+    // Send the output back through as input, translating toward the language we came from.
     const newTarget = lastDetected && LANG_NAMES[lastDetected] ? lastDetected : toLang.value;
-    const oldOutput = toText.value;
-    fromText.value = oldOutput;
+    fromText.value = toText.value;
     toText.value = '';
     toLang.value = newTarget;
     lastDetected = null;
