@@ -1,4 +1,4 @@
-const CACHE = 'translate-shell-v1';
+const CACHE = 'translate-shell-v2';
 const SHELL_FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -17,17 +17,17 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  // Only cache same-origin app-shell requests; let translation API calls pass through to the network.
+  // Let translation API calls pass straight through to the network.
   if (url.origin !== self.location.origin) return;
 
+  // Network-first: always prefer the freshest app version, fall back to cache offline.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(event.request, copy));
         return response;
-      }).catch(() => cached);
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
