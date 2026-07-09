@@ -324,15 +324,24 @@
   function renderBar(src, tgt) {
     currentSrc = src;
     currentTgt = tgt;
-    sourceChip.textContent = LANG_NAMES[src];
-    targetChip.textContent = LANG_NAMES[tgt];
+    sourceChip.textContent = LANG_NAMES[src] || (src || '').toUpperCase();
+    targetChip.textContent = LANG_NAMES[tgt] || (tgt || '').toUpperCase();
   }
 
-  function computeDirection(text) {
-    const src = detectLang(text);
-    // Spanish always translates back to English; Dutch/English go to Spanish.
-    const tgt = src === 'es' ? 'en' : 'es';
-    return { src, tgt };
+  const apiCode = (lang) => (lang === 'es' ? 'es-419' : lang); // Latin American Spanish
+  const norm = (t) => t.trim().toLowerCase();
+  const isNoop = (a, b) => norm(a) === norm(b);
+  // Google frequently tags bare Dutch words as Afrikaans; treat as Dutch here.
+  const normSrc = (code) => (code === 'af' ? 'nl' : code);
+
+  async function callGoogle(sl, tl, text) {
+    // dt=t = translation, dt=bd = dictionary (alternative meanings by part of speech).
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${apiCode(tl)}&dt=t&dt=bd&hl=en&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    if (!Array.isArray(data[0])) throw new Error('bad payload');
+    return { data, text: data[0].map((chunk) => chunk[0]).join('') };
   }
 
   // Show the dictionary block (alternative meanings by part of speech) when Google
@@ -421,33 +430,54 @@
       return;
     }
 
-    const { src, tgt } = computeDirection(text);
-    renderBar(src, tgt);
-    // es-419 = Latin American Spanish (vs. es-ES for Spain)
-    const apiTgt = tgt === 'es' ? 'es-419' : tgt;
+    // Fast local guess only picks which direction to *probe* first (saves a call);
+    // the real direction comes from Google's auto-detect + a no-op safety check.
+    const guess = detectLang(text);
+    const firstTgt = guess === 'es' ? 'en' : 'es';
     const myRequest = ++requestId;
     scheduleSpinner(myRequest);
 
     try {
-      // dt=t = translation, dt=bd = dictionary (alternative meanings by part of speech).
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${apiTgt}&dt=t&dt=bd&hl=en&q=${encodeURIComponent(text)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('bad status');
-      const data = await res.json();
+      let result = await callGoogle('auto', firstTgt, text);
       if (myRequest !== requestId) return; // stale response
-      if (!Array.isArray(data[0])) throw new Error('bad payload');
+      let tgt = firstTgt;
 
-      toText.value = data[0].map(chunk => chunk[0]).join('');
-      renderMeanings(data[1]);
+      // A no-op means auto-detect refused to translate — almost always a bare
+      // Spanish word it wrongly reads as English (e.g. "gato", "casa"). Force it to
+      // be treated as Spanish and translate to English; keep only if that helps.
+      if (isNoop(result.text, text)) {
+        const forced = await callGoogle('es', 'en', text);
+        if (myRequest !== requestId) return;
+        if (!isNoop(forced.text, text)) {
+          result = forced;
+          tgt = 'en';
+        }
+      }
+
+      // This app only ever produces English from Spanish; everything else -> Spanish.
+      let src;
+      if (tgt === 'en') {
+        src = 'es';
+      } else {
+        const detected = normSrc(result.data[2]);
+        src = detected === 'nl' || detected === 'en' ? detected : (guess === 'nl' ? 'nl' : 'en');
+      }
+
+      renderBar(src, tgt);
+      toText.value = result.text;
+      renderMeanings(result.data[1]);
       hideSpinner();
       status.textContent = '';
     } catch (err) {
       if (myRequest !== requestId) return;
       renderMeanings(null);
 
-      // Fallback to MyMemory using the same detected source language.
+      // Fallback to MyMemory using the local guess for direction.
+      const src = guess;
+      const tgt = guess === 'es' ? 'en' : 'es';
+      renderBar(src, tgt);
       try {
-        const translated = await translateWithMyMemory(text, src, apiTgt);
+        const translated = await translateWithMyMemory(text, src, apiCode(tgt));
         if (myRequest !== requestId) return;
         toText.value = translated;
         hideSpinner();
