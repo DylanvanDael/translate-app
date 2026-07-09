@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Translate</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --panel: #ffffff;
+    --border: #e5e5e5;
+    --text: #1a1a1a;
+    --muted: #8a8a8a;
+    --accent: #1a1a1a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --panel: #1a1a1a;
+      --border: #2c2c2c;
+      --text: #f2f2f2;
+      --muted: #8a8a8a;
+      --accent: #f2f2f2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    padding: 24px;
+  }
+  .app {
+    width: 100%;
+    max-width: 900px;
+  }
+  h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin: 0 0 16px 4px;
+  }
+  .card {
+    display: flex;
+    align-items: stretch;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  select {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 4px 2px;
+    cursor: pointer;
+  }
+  select:focus { outline: none; }
+  textarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 17px;
+    line-height: 1.5;
+    padding: 16px;
+    min-height: 180px;
+    font-family: inherit;
+  }
+  textarea:focus { outline: none; }
+  textarea::placeholder { color: var(--muted); }
+  .divider {
+    width: 1px;
+    background: var(--border);
+  }
+  .swap-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    position: relative;
+  }
+  .swap {
+    position: absolute;
+    left: -18px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    font-size: 16px;
+    transition: transform 0.15s ease;
+  }
+  .swap:hover { transform: translateY(-50%) rotate(180deg); }
+  .status {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    height: 16px;
+  }
+  @media (max-width: 640px) {
+    .card { flex-direction: column; }
+    .divider { width: auto; height: 1px; }
+    .swap-wrap { width: auto; height: 0; }
+    .swap { left: 50%; top: -18px; transform: translateX(-50%); }
+    .swap:hover { transform: translateX(-50%) rotate(180deg); }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <h1>Translate</h1>
+    <div class="card">
+      <div class="pane">
+        <div class="pane-header">
+          <select id="fromLang">
+            <option value="en">English</option>
+            <option value="nl">Dutch</option>
+            <option value="es">Spanish</option>
+          </select>
+        </div>
+        <textarea id="fromText" placeholder="Type here…" autofocus></textarea>
+      </div>
+
+      <div class="divider"></div>
+      <div class="swap-wrap"><button class="swap" id="swapBtn" title="Swap languages">⇄</button></div>
+      <div class="divider"></div>
+
+      <div class="pane">
+        <div class="pane-header">
+          <select id="toLang">
+            <option value="es">Spanish</option>
+            <option value="en">English</option>
+            <option value="nl">Dutch</option>
+          </select>
+        </div>
+        <textarea id="toText" placeholder="Translation" readonly></textarea>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+<script>
+  const fromLang = document.getElementById('fromLang');
+  const toLang = document.getElementById('toLang');
+  const fromText = document.getElementById('fromText');
+  const toText = document.getElementById('toText');
+  const status = document.getElementById('status');
+  const swapBtn = document.getElementById('swapBtn');
+
+  let debounceTimer = null;
+  let requestId = 0;
+
+  async function translate() {
+    const text = fromText.value.trim();
+    if (!text) {
+      toText.value = '';
+      status.textContent = '';
+      return;
+    }
+    const src = fromLang.value;
+    const tgt = toLang.value;
+    if (src === tgt) {
+      toText.value = fromText.value;
+      status.textContent = '';
+      return;
+    }
+
+    const myRequest = ++requestId;
+    status.textContent = 'Translating…';
+
+    try {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${tgt}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (myRequest !== requestId) return; // stale response
+
+      if (data && data.responseData && data.responseData.translatedText) {
+        toText.value = data.responseData.translatedText;
+        status.textContent = '';
+      } else {
+        status.textContent = 'Translation failed';
+      }
+    } catch (err) {
+      if (myRequest !== requestId) return;
+      status.textContent = 'Network error';
+    }
+  }
+
+  function scheduleTranslate() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(translate, 400);
+  }
+
+  fromText.addEventListener('input', scheduleTranslate);
+  fromLang.addEventListener('change', scheduleTranslate);
+  toLang.addEventListener('change', scheduleTranslate);
+
+  swapBtn.addEventListener('click', () => {
+    const fl = fromLang.value, tl = toLang.value;
+    fromLang.value = tl;
+    toLang.value = fl;
+    const ft = fromText.value, tt = toText.value;
+    fromText.value = tt;
+    toText.value = ft;
+    scheduleTranslate();
+  });
+</script>
+</body>
+</html>
